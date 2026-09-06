@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UNO Web - Salas & Temporizador</title>
+  <style>
+    :root {
+      --uno-red: #ea323c;
+      --uno-blue: #0098dc;
+      --uno-green: #339e35;
+      --uno-yellow: #ffc825;
+      --uno-dark: #1e272e;
+      --uno-black: #111;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      user-select: none;
+    }
+
+    body {
+      background: radial-gradient(circle, #2c3e50, #000000);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+    }
+
+    .screen {
+      display: none;
+      width: 100%;
+      max-width: 1000px;
+      height: 90vh;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .active-screen {
+      display: flex;
+    }
+
+    /* Lobby */
+    .lobby-card {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 30px;
+      width: 90%;
+      max-width: 420px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .lobby-card h1 {
+      text-align: center;
+      margin-bottom: 24px;
+      font-size: 2.2rem;
+      letter-spacing: 2px;
+      color: var(--uno-yellow);
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.9rem;
+      color: #ccc;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid #444;
+      background: #1e1e24;
+      color: #fff;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      background: #e67e22;
+      color: white;
+      font-size: 1.1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.2s ease;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      opacity: 0.9;
+      transform: translateY(-2px);
+    }
+
+    /* Tabuleiro */
+    #game-screen {
+      justify-content: space-between;
+      position: relative;
+      padding: 20px;
+    }
+
+    .top-bar {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 10px 20px;
+      border-radius: 12px;
+    }
+
+    .player-list {
+      display: flex;
+      gap: 15px;
+    }
+
+    .player-badge {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid transparent;
+    }
+
+    .player-badge.active-turn {
+      border-color: #f1c40f;
+      background: rgba(241, 196, 15, 0.2);
+    }
+
+    .timer-badge {
+      background: #c0392b;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-family: monospace;
+    }
+
+    /* Centro da Mesa */
+    .table-center {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 40px;
+      margin: auto 0;
+    }
+
+    .deck-pile, .discard-pile {
+      width: 110px;
+      height: 160px;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+      position: relative;
+    }
+
+    .deck-pile {
+      background: #1a252f;
+      border: 3px dashed rgba(255, 255, 255, 0.4);
+      cursor: pointer;
+    }
+
+    .deck-pile:hover {
+      transform: scale(1.03);
+    }
+
+    /* Cartas UNO */
+    .card {
+      width: 90px;
+      height: 135px;
+      border-radius: 10px;
+      padding: 6px;
+      display: inline-flex;
+      flex-direction: column;
+      justify-content: space-between;
+      color: white;
+      font-weight: 900;
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+      border: 3px solid #fff;
+    }
+
+    .card:hover {
+      transform: translateY(-20px) scale(1.05);
+      z-index: 10;
+    }
+
+    .card.red { background-color: var(--uno-red); }
+    .card.blue { background-color: var(--uno-blue); }
+    .card.green { background-color: var(--uno-green); }
+    .card.yellow { background-color: var(--uno-yellow); color: #111; }
+    .card.black { background-color: var(--uno-black); }
+
+    .card-center {
+      font-size: 2rem;
+      align-self: center;
+      background: rgba(255, 255, 255, 0.25);
+      width: 50px;
+      height: 65px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card.yellow .card-center {
+      background: rgba(0, 0, 0, 0.15);
+    }
+
+    .card-corner {
+      font-size: 0.9rem;
+    }
+
+    .card-corner.bottom {
+      transform: rotate(180deg);
+    }
+
+    /* Mão do Jogador Atual */
+    .hand-container {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 15px;
+      border-radius: 16px;
+    }
+
+    .hand-info {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 800px;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+
+    .hand-cards {
+      display: flex;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      max-width: 100%;
+      padding: 15px 5px;
+      gap: 10px;
+    }
+
+    /* Notificações */
+    #game-log {
+      position: absolute;
+      top: 80px;
+      font-size: 0.95rem;
+      background: rgba(0,0,0,0.6);
+      padding: 6px 16px;
+      border-radius: 20px;
+      color: #eee;
+    }
+
+    /* Modal Escolha de Cor */
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+
+    .modal-content {
+      background: #222;
+      padding: 20px;
+      border-radius: 12px;
+      text-align: center;
+    }
+
+    .color-picker {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 15px;
+    }
+
+    .color-btn {
+      width: 80px;
+      height: 80px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="lobby-screen" class="screen active-screen">
+    <div class="lobby-card">
+      <h1>UNO SALAS</h1>
+      <div class="form-group">
+        <label>Nome da Sala</label>
+        <input type="text" id="room-input" placeholder="Ex: Sala 101" value="Sala Oficial">
+      </div>
+      <div class="form-group">
+        <label>Seu Nome</label>
+        <input type="text" id="player-name" placeholder="Ex: Lucas" value="Jogador 1">
+      </div>
+      <div class="form-group">
+        <label>Quantidade de Jogadores</label>
+        <select id="player-count">
+          <option value="2">2 Jogadores</option>
+          <option value="3">3 Jogadores</option>
+          <option value="4">4 Jogadores</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Tempo por Turno (segundos)</label>
+        <input type="number" id="turn-timer" min="5" max="60" value="15">
+      </div>
+      <button onclick="startGame()">Entrar na Sala & Jogar</button>
+    </div>
+  </div>
+
+  <div id="game-screen" class="screen">
+    <div class="top-bar">
+      <div><strong>Sala:</strong> <span id="current-room-name"></span></div>
+      <div class="player-list" id="players-tracker"></div>
+    </div>
+
+    <div id="game-log">A partida começou!</div>
+
+    <div class="table-center">
+      <div class="deck-pile" onclick="playerDrawCard()">
+        <span style="font-weight: bold; font-size: 1.2rem;">UNO</span>
+        <small style="margin-top: 4px; color: #aaa;">Comprar</small>
+      </div>
+      
+      <div id="discard-spot"></div>
+    </div>
+
+    <div class="hand-container">
+      <div class="hand-info">
+        <span id="active-player-name">Turno do Jogador: ...</span>
+        <span>Tempo: <span id="turn-countdown" style="color: #ff5252;">00</span>s</span>
+      </div>
+      <div class="hand-cards" id="player-cards"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="color-modal">
+    <div class="modal-content">
+      <h3>Escolha uma Cor</h3>
+      <div class="color-picker">
+        <button class="color-btn" style="background: var(--uno-red)" onclick="setWildColor('red')"></button>
+        <button class="color-btn" style="background: var(--uno-blue)" onclick="setWildColor('blue')"></button>
+        <button class="color-btn" style="background: var(--uno-green)" onclick="setWildColor('green')"></button>
+        <button class="color-btn" style="background: var(--uno-yellow)" onclick="setWildColor('yellow')"></button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const COLORS = ['red', 'blue', 'green', 'yellow'];
+    const VALUES = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'SKIP', '+2'];
+
+    let deck = [];
+    let discardPile = [];
+    let players = [];
+    let currentPlayerIndex = 0;
+    let turnDuration = 15;
+    let currentTime = 15;
+    let timerInterval = null;
+    let pendingWildCard = null;
+
+    function createDeck() {
+      const cards = [];
+      for (const color of COLORS) {
+        cards.push({ color, value: '0' });
+        for (let i = 0; i < 2; i++) {
+          for (let v = 1; v < VALUES.length; v++) {
+            cards.push({ color, value: VALUES[v] });
+          }
+        }
+      }
+      for (let i = 0; i < 4; i++) {
+        cards.push({ color: 'black', value: 'WILD' });
+        cards.push({ color: 'black', value: '+4' });
+      }
+      return shuffle(cards);
+    }
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function startGame() {
+      const roomName = document.getElementById('room-input').value.trim() || 'Sala 1';
+      const mainPlayer = document.getElementById('player-name').value.trim() || 'Jogador 1';
+      const totalPlayers = parseInt(document.getElementById('player-count').value);
+      turnDuration = parseInt(document.getElementById('turn-timer').value) || 15;
+
+      deck = createDeck();
+      players = [];
+
+      players.push({ name: mainPlayer, hand: [] });
+      for (let i = 2; i <= totalPlayers; i++) {
+        players.push({ name: `Jogador ${i}`, hand: [] });
+      }
+
+      // Distribui 7 cartas para cada
+      players.forEach(p => {
+        for (let i = 0; i < 7; i++) {
+          p.hand.push(deck.pop());
+        }
+      });
+
+      // Abre primeira carta (evita coringa para simplicidade inicial)
+      let initialCard = deck.pop();
+      while (initialCard.color === 'black') {
+        deck.unshift(initialCard);
+        initialCard = deck.pop();
+      }
+      discardPile.push(initialCard);
+
+      document.getElementById('lobby-screen').classList.remove('active-screen');
+      document.getElementById('game-screen').classList.add('active-screen');
+      document.getElementById('current-room-name').innerText = roomName;
+
+      currentPlayerIndex = 0;
+      updateUI();
+      startTurnTimer();
+    }
+
+    function startTurnTimer() {
+      clearInterval(timerInterval);
+      currentTime = turnDuration;
+      document.getElementById('turn-countdown').innerText = currentTime;
+
+      timerInterval = setInterval(() => {
+        currentTime--;
+        document.getElementById('turn-countdown').innerText = currentTime;
+
+        if (currentTime <= 0) {
+          clearInterval(timerInterval);
+          logAction(`${players[currentPlayerIndex].name} estourou o tempo e comprou 1 carta!`);
+          giveCards(currentPlayerIndex, 1);
+          nextTurn();
+        }
+      }, 1000);
+    }
+
+    function resetTimer() {
+      clearInterval(timerInterval);
+      startTurnTimer();
+    }
+
+    function getTopCard() {
+      return discardPile[discardPile.length - 1];
+    }
+
+    function canPlay(card) {
+      const top = getTopCard();
+      return (
+        card.color === 'black' ||
+        card.color === top.color ||
+        card.value === top.value
+      );
+    }
+
+    function playCard(index) {
+      const player = players[currentPlayerIndex];
+      const card = player.hand[index];
+
+      if (!canPlay(card)) {
+        logAction('Movimento inválido! Cor ou número incompatível.');
+        return;
+      }
+
+      player.hand.splice(index, 1);
+
+      if (card.color === 'black') {
+        pendingWildCard = card;
+        document.getElementById('color-modal').style.display = 'flex';
+        return;
+      }
+
+      applyCardEffects(card);
+    }
+
+    function setWildColor(selectedColor) {
+      document.getElementById('color-modal').style.display = 'none';
+      const card = pendingWildCard;
+      pendingWildCard = null;
+
+      card.color = selectedColor;
+      applyCardEffects(card);
+    }
+
+    function applyCardEffects(card) {
+      discardPile.push(card);
+
+      const winner = checkWinner();
+      if (winner) return;
+
+      if (card.value === 'SKIP') {
+        logAction(`${players[currentPlayerIndex].name} jogou BLOQUEIO! Próximo jogador perdeu a vez.`);
+        advanceTurnIndex();
+      } else if (card.value === '+2') {
+        const target = getNextPlayerIndex();
+        logAction(`${players[target].name} comprou 2 cartas e perdeu o turno!`);
+        giveCards(target, 2);
+        advanceTurnIndex();
+      } else if (card.value === '+4') {
+        const target = getNextPlayerIndex();
+        logAction(`${players[target].name} comprou 4 cartas e perdeu o turno!`);
+        giveCards(target, 4);
+        advanceTurnIndex();
+      }
+
+      nextTurn();
+    }
+
+    function giveCards(playerIdx, count) {
+      for (let i = 0; i < count; i++) {
+        if (deck.length === 0) recycleDiscardPile();
+        if (deck.length > 0) players[playerIdx].hand.push(deck.pop());
+      }
+    }
+
+    function recycleDiscardPile() {
+      if (discardPile.length <= 1) return;
+      const top = discardPile.pop();
+      deck = shuffle(discardPile.map(c => (c.value === 'WILD' || c.value === '+4') ? { ...c, color: 'black' } : c));
+      discardPile = [top];
+    }
+
+    function playerDrawCard() {
+      giveCards(currentPlayerIndex, 1);
+      logAction(`${players[currentPlayerIndex].name} comprou uma carta.`);
+      nextTurn();
+    }
+
+    function getNextPlayerIndex() {
+      return (currentPlayerIndex + 1) % players.length;
+    }
+
+    function advanceTurnIndex() {
+      currentPlayerIndex = getNextPlayerIndex();
+    }
+
+    function nextTurn() {
+      advanceTurnIndex();
+      updateUI();
+      resetTimer();
+    }
+
+    function checkWinner() {
+      const player = players[currentPlayerIndex];
+      if (player.hand.length === 0) {
+        clearInterval(timerInterval);
+        alert(`Fim de jogo! ${player.name} venceu a partida!`);
+        location.reload();
+        return true;
+      }
+      return false;
+    }
+
+    function logAction(msg) {
+      document.getElementById('game-log').innerText = msg;
+    }
+
+    function renderCard(card, isInteractive = false, index = null) {
+      const cardEl = document.createElement('div');
+      cardEl.className = `card ${card.color}`;
+      
+      const label = card.value === 'WILD' ? '★' : card.value;
+
+      cardEl.innerHTML = `
+        <div class="card-corner">${label}</div>
+        <div class="card-center">${label}</div>
+        <div class="card-corner bottom">${label}</div>
+      `;
+
+      if (isInteractive && index !== null) {
+        cardEl.onclick = () => playCard(index);
+      }
+      return cardEl;
+    }
+
+    function updateUI() {
+      // Rastreador Superior de Jogadores
+      const tracker = document.getElementById('players-tracker');
+      tracker.innerHTML = '';
+      players.forEach((p, idx) => {
+        const badge = document.createElement('div');
+        badge.className = `player-badge ${idx === currentPlayerIndex ? 'active-turn' : ''}`;
+        badge.innerHTML = `
+          <span>${p.name} (${p.hand.length})</span>
+          ${idx === currentPlayerIndex ? `<span class="timer-badge">VEZ</span>` : ''}
+        `;
+        tracker.appendChild(badge);
+      });
+
+      // Pilha de Descarte
+      const discardSpot = document.getElementById('discard-spot');
+      discardSpot.innerHTML = '';
+      discardSpot.appendChild(renderCard(getTopCard()));
+
+      // Painel Inferior
+      document.getElementById('active-player-name').innerText = `Turno atual: ${players[currentPlayerIndex].name}`;
+
+      // Mão do Jogador Atual
+      const cardsContainer = document.getElementById('player-cards');
+      cardsContainer.innerHTML = '';
+      players[currentPlayerIndex].hand.forEach((card, index) => {
+        cardsContainer.appendChild(renderCard(card, true, index));
+      });
+    }
+  </script>
+</body>
+</html>
