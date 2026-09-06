@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>UNO Web - Salas & Temporizador</title>
+  <title>UNO Multiplayer Realtime - PeerJS</title>
+  <!-- Biblioteca PeerJS para conexão P2P WebRTC direta entre navegadores -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
     :root {
       --uno-red: #ea323c;
@@ -37,7 +39,7 @@
       display: none;
       width: 100%;
       max-width: 1000px;
-      height: 90vh;
+      height: 92vh;
       flex-direction: column;
       align-items: center;
       justify-content: center;
@@ -54,21 +56,21 @@
       border-radius: 16px;
       padding: 30px;
       width: 90%;
-      max-width: 420px;
+      max-width: 440px;
       border: 1px solid rgba(255, 255, 255, 0.2);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     }
 
     .lobby-card h1 {
       text-align: center;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
       font-size: 2.2rem;
       letter-spacing: 2px;
       color: var(--uno-yellow);
     }
 
     .form-group {
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
 
     label {
@@ -78,7 +80,7 @@
       color: #ccc;
     }
 
-    input, select {
+    input {
       width: 100%;
       padding: 10px 14px;
       border-radius: 8px;
@@ -96,11 +98,11 @@
       border-radius: 8px;
       background: #e67e22;
       color: white;
-      font-size: 1.1rem;
+      font-size: 1.05rem;
       font-weight: bold;
       cursor: pointer;
       transition: 0.2s ease;
-      margin-top: 10px;
+      margin-top: 8px;
     }
 
     button:hover {
@@ -108,11 +110,55 @@
       transform: translateY(-2px);
     }
 
+    button.secondary {
+      background: #34495e;
+    }
+
+    .divider {
+      text-align: center;
+      margin: 15px 0;
+      color: #777;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      font-weight: bold;
+    }
+
+    /* Sala de Espera */
+    .waiting-list {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+      padding: 12px;
+      margin: 15px 0;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .waiting-item {
+      padding: 6px 10px;
+      margin-bottom: 4px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
+      font-size: 0.95rem;
+    }
+
+    .room-code-badge {
+      background: #27ae60;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 1.1rem;
+      font-family: monospace;
+      font-weight: bold;
+      display: inline-block;
+      margin-top: 5px;
+      user-select: all;
+    }
+
     /* Tabuleiro */
     #game-screen {
       justify-content: space-between;
       position: relative;
-      padding: 20px;
+      padding: 15px;
     }
 
     .top-bar {
@@ -121,29 +167,36 @@
       justify-content: space-between;
       align-items: center;
       background: rgba(0, 0, 0, 0.4);
-      padding: 10px 20px;
+      padding: 10px 16px;
       border-radius: 12px;
+      flex-wrap: wrap;
+      gap: 10px;
     }
 
     .player-list {
       display: flex;
-      gap: 15px;
+      gap: 10px;
+      flex-wrap: wrap;
     }
 
     .player-badge {
       background: rgba(255, 255, 255, 0.1);
-      padding: 8px 14px;
+      padding: 6px 12px;
       border-radius: 8px;
       font-size: 0.85rem;
       display: flex;
       align-items: center;
       gap: 8px;
-      border: 1px solid transparent;
+      border: 2px solid transparent;
     }
 
     .player-badge.active-turn {
       border-color: #f1c40f;
-      background: rgba(241, 196, 15, 0.2);
+      background: rgba(241, 196, 15, 0.25);
+    }
+
+    .player-badge.you {
+      border-color: #3498db;
     }
 
     .timer-badge {
@@ -159,36 +212,33 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 40px;
+      gap: 30px;
       margin: auto 0;
     }
 
-    .deck-pile, .discard-pile {
-      width: 110px;
-      height: 160px;
+    .deck-pile {
+      width: 100px;
+      height: 150px;
       border-radius: 12px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       box-shadow: 0 10px 20px rgba(0,0,0,0.5);
-      position: relative;
-    }
-
-    .deck-pile {
       background: #1a252f;
       border: 3px dashed rgba(255, 255, 255, 0.4);
       cursor: pointer;
+      transition: transform 0.2s ease;
     }
 
     .deck-pile:hover {
-      transform: scale(1.03);
+      transform: scale(1.04);
     }
 
     /* Cartas UNO */
     .card {
-      width: 90px;
-      height: 135px;
+      width: 85px;
+      height: 130px;
       border-radius: 10px;
       padding: 6px;
       display: inline-flex;
@@ -204,7 +254,7 @@
     }
 
     .card:hover {
-      transform: translateY(-20px) scale(1.05);
+      transform: translateY(-16px) scale(1.05);
       z-index: 10;
     }
 
@@ -215,11 +265,11 @@
     .card.black { background-color: var(--uno-black); }
 
     .card-center {
-      font-size: 2rem;
+      font-size: 1.8rem;
       align-self: center;
       background: rgba(255, 255, 255, 0.25);
-      width: 50px;
-      height: 65px;
+      width: 48px;
+      height: 60px;
       border-radius: 50%;
       display: flex;
       align-items: center;
@@ -231,7 +281,7 @@
     }
 
     .card-corner {
-      font-size: 0.9rem;
+      font-size: 0.85rem;
     }
 
     .card-corner.bottom {
@@ -244,8 +294,8 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      background: rgba(0, 0, 0, 0.3);
-      padding: 15px;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 12px;
       border-radius: 16px;
     }
 
@@ -254,8 +304,9 @@
       justify-content: space-between;
       width: 100%;
       max-width: 800px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       font-weight: bold;
+      font-size: 0.95rem;
     }
 
     .hand-cards {
@@ -264,16 +315,16 @@
       overflow-x: auto;
       max-width: 100%;
       padding: 15px 5px;
-      gap: 10px;
+      gap: 8px;
     }
 
     /* Notificações */
     #game-log {
       position: absolute;
-      top: 80px;
-      font-size: 0.95rem;
-      background: rgba(0,0,0,0.6);
-      padding: 6px 16px;
+      top: 75px;
+      font-size: 0.9rem;
+      background: rgba(0,0,0,0.7);
+      padding: 6px 14px;
       border-radius: 20px;
       color: #eee;
     }
@@ -283,7 +334,7 @@
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.7);
+      background: rgba(0, 0, 0, 0.75);
       justify-content: center;
       align-items: center;
       z-index: 100;
@@ -291,7 +342,7 @@
 
     .modal-content {
       background: #222;
-      padding: 20px;
+      padding: 22px;
       border-radius: 12px;
       text-align: center;
     }
@@ -314,43 +365,63 @@
 </head>
 <body>
 
+  <!-- TELA 1: ENTRADA / CRIAÇÃO DE SALA -->
   <div id="lobby-screen" class="screen active-screen">
     <div class="lobby-card">
-      <h1>UNO SALAS</h1>
-      <div class="form-group">
-        <label>Nome da Sala</label>
-        <input type="text" id="room-input" placeholder="Ex: Sala 101" value="Sala Oficial">
-      </div>
+      <h1>UNO REALTIME</h1>
+      
       <div class="form-group">
         <label>Seu Nome</label>
-        <input type="text" id="player-name" placeholder="Ex: Lucas" value="Jogador 1">
+        <input type="text" id="player-name-input" placeholder="Digite seu apelido" value="Jogador">
       </div>
-      <div class="form-group">
-        <label>Quantidade de Jogadores</label>
-        <select id="player-count">
-          <option value="2">2 Jogadores</option>
-          <option value="3">3 Jogadores</option>
-          <option value="4">4 Jogadores</option>
-        </select>
-      </div>
+
       <div class="form-group">
         <label>Tempo por Turno (segundos)</label>
-        <input type="number" id="turn-timer" min="5" max="60" value="15">
+        <input type="number" id="timer-input" min="5" max="60" value="15">
       </div>
-      <button onclick="startGame()">Entrar na Sala & Jogar</button>
+
+      <button onclick="createRoom()">Criar Nova Sala (Host)</button>
+
+      <div class="divider">OU ENTRAR EM UMA SALA</div>
+
+      <div class="form-group">
+        <label>Código da Sala</label>
+        <input type="text" id="room-code-input" placeholder="Cole o código da sala aqui">
+      </div>
+
+      <button class="secondary" onclick="joinRoom()">Entrar na Sala</button>
     </div>
   </div>
 
+  <!-- TELA 2: SALA DE ESPERA (LOBBY ROOM) -->
+  <div id="waiting-screen" class="screen">
+    <div class="lobby-card">
+      <h2>Sala de Espera</h2>
+      <p style="margin-top: 10px; font-size: 0.9rem; color: #bbb;">Compartilhe este código com outros aparelhos:</p>
+      <div class="room-code-badge" id="display-room-code">Carregando...</div>
+
+      <div class="waiting-list" id="waiting-players-list"></div>
+
+      <div id="host-controls" style="display: none;">
+        <button onclick="hostStartMatch()">Iniciar Jogo</button>
+      </div>
+      <p id="client-wait-text" style="display: none; font-size: 0.85rem; color: #ffeb3b; text-align: center; margin-top: 10px;">
+        Aguardando o Host iniciar a partida...
+      </p>
+    </div>
+  </div>
+
+  <!-- TELA 3: O JOGO EM TEMPO REAL -->
   <div id="game-screen" class="screen">
     <div class="top-bar">
-      <div><strong>Sala:</strong> <span id="current-room-name"></span></div>
+      <div><strong>Código:</strong> <span id="board-room-code"></span></div>
       <div class="player-list" id="players-tracker"></div>
     </div>
 
-    <div id="game-log">A partida começou!</div>
+    <div id="game-log">Aguardando início...</div>
 
     <div class="table-center">
-      <div class="deck-pile" onclick="playerDrawCard()">
+      <div class="deck-pile" onclick="onDeckClick()">
         <span style="font-weight: bold; font-size: 1.2rem;">UNO</span>
         <small style="margin-top: 4px; color: #aaa;">Comprar</small>
       </div>
@@ -360,21 +431,22 @@
 
     <div class="hand-container">
       <div class="hand-info">
-        <span id="active-player-name">Turno do Jogador: ...</span>
+        <span id="active-turn-text">Turno: ...</span>
         <span>Tempo: <span id="turn-countdown" style="color: #ff5252;">00</span>s</span>
       </div>
       <div class="hand-cards" id="player-cards"></div>
     </div>
   </div>
 
+  <!-- MODAL DE COR PARA CORINGAS -->
   <div class="modal" id="color-modal">
     <div class="modal-content">
       <h3>Escolha uma Cor</h3>
       <div class="color-picker">
-        <button class="color-btn" style="background: var(--uno-red)" onclick="setWildColor('red')"></button>
-        <button class="color-btn" style="background: var(--uno-blue)" onclick="setWildColor('blue')"></button>
-        <button class="color-btn" style="background: var(--uno-green)" onclick="setWildColor('green')"></button>
-        <button class="color-btn" style="background: var(--uno-yellow)" onclick="setWildColor('yellow')"></button>
+        <button class="color-btn" style="background: var(--uno-red)" onclick="selectWildColor('red')"></button>
+        <button class="color-btn" style="background: var(--uno-blue)" onclick="selectWildColor('blue')"></button>
+        <button class="color-btn" style="background: var(--uno-green)" onclick="selectWildColor('green')"></button>
+        <button class="color-btn" style="background: var(--uno-yellow)" onclick="selectWildColor('yellow')"></button>
       </div>
     </div>
   </div>
@@ -383,14 +455,37 @@
     const COLORS = ['red', 'blue', 'green', 'yellow'];
     const VALUES = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'SKIP', '+2'];
 
-    let deck = [];
-    let discardPile = [];
-    let players = [];
-    let currentPlayerIndex = 0;
-    let turnDuration = 15;
-    let currentTime = 15;
-    let timerInterval = null;
-    let pendingWildCard = null;
+    let myName = "Jogador";
+    let myPeerId = null;
+    let peer = null;
+    let isHost = false;
+    let hostConn = null;
+    let connections = []; // Conexões do host para os clientes
+
+    // Estado da Sala e do Jogo (O Host é a autoridade da verdade)
+    let roomCode = "";
+    let roomPlayers = []; // [{ id, name, cardCount }]
+    let hostGameState = {
+      deck: [],
+      discardPile: [],
+      playerHands: {}, // { peerId: [cards] }
+      currentPlayerIndex: 0,
+      turnTimer: 15,
+      currentTimerValue: 15,
+      status: "lobby"
+    };
+
+    let localMyHand = [];
+    let localDiscardTop = null;
+    let localCurrentTurnPlayerId = null;
+    let localTimerSeconds = 15;
+    let hostTimerInterval = null;
+    let pendingWildIndex = null;
+
+    function switchScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active-screen'));
+      document.getElementById(screenId).classList.add('active-screen');
+    }
 
     function createDeck() {
       const cards = [];
@@ -417,182 +512,397 @@
       return array;
     }
 
-    function startGame() {
-      const roomName = document.getElementById('room-input').value.trim() || 'Sala 1';
-      const mainPlayer = document.getElementById('player-name').value.trim() || 'Jogador 1';
-      const totalPlayers = parseInt(document.getElementById('player-count').value);
-      turnDuration = parseInt(document.getElementById('turn-timer').value) || 15;
+    // CRIAÇÃO DA SALA (HOST)
+    function createRoom() {
+      myName = document.getElementById('player-name-input').value.trim() || "Host";
+      const timerVal = parseInt(document.getElementById('timer-input').value) || 15;
+      hostGameState.turnTimer = timerVal;
+      hostGameState.currentTimerValue = timerVal;
 
-      deck = createDeck();
-      players = [];
+      isHost = true;
+      const randomRoomSuffix = Math.floor(1000 + Math.random() * 9000);
+      const customRoomId = "uno-room-" + randomRoomSuffix;
 
-      players.push({ name: mainPlayer, hand: [] });
-      for (let i = 2; i <= totalPlayers; i++) {
-        players.push({ name: `Jogador ${i}`, hand: [] });
+      peer = new Peer(customRoomId);
+
+      peer.on('open', (id) => {
+        myPeerId = id;
+        roomCode = id;
+        document.getElementById('display-room-code').innerText = roomCode;
+        document.getElementById('board-room-code').innerText = roomCode;
+        document.getElementById('host-controls').style.display = 'block';
+
+        roomPlayers = [{ id: myPeerId, name: myName, cardCount: 0 }];
+        updateLobbyList();
+        switchScreen('waiting-screen');
+      });
+
+      peer.on('connection', (conn) => {
+        connections.push(conn);
+
+        conn.on('data', (data) => {
+          handleHostReceivedData(conn, data);
+        });
+
+        conn.on('close', () => {
+          roomPlayers = roomPlayers.filter(p => p.id !== conn.peer);
+          delete hostGameState.playerHands[conn.peer];
+          broadcastLobbyState();
+          if (hostGameState.status === "playing") {
+            validateTurnAfterDisconnect();
+            broadcastGameState();
+          }
+        });
+      });
+
+      peer.on('error', (err) => {
+        alert("Erro no servidor PeerJS ou código já em uso. Tente novamente.");
+        console.error(err);
+      });
+    }
+
+    // ENTRAR NA SALA (CLIENTE)
+    function joinRoom() {
+      myName = document.getElementById('player-name-input').value.trim() || "Jogador";
+      const targetCode = document.getElementById('room-code-input').value.trim();
+
+      if (!targetCode) {
+        alert("Digite o código da sala!");
+        return;
       }
 
-      // Distribui 7 cartas para cada
-      players.forEach(p => {
+      isHost = false;
+      peer = new Peer();
+
+      peer.on('open', (id) => {
+        myPeerId = id;
+        roomCode = targetCode;
+        document.getElementById('display-room-code').innerText = roomCode;
+        document.getElementById('board-room-code').innerText = roomCode;
+        document.getElementById('client-wait-text').style.display = 'block';
+
+        hostConn = peer.connect(targetCode);
+
+        hostConn.on('open', () => {
+          hostConn.send({ type: 'JOIN_LOBBY', name: myName });
+          switchScreen('waiting-screen');
+        });
+
+        hostConn.on('data', (data) => {
+          handleClientReceivedData(data);
+        });
+
+        hostConn.on('close', () => {
+          alert("A conexão com o Host foi perdida!");
+          location.reload();
+        });
+      });
+
+      peer.on('error', (err) => {
+        alert("Erro ao conectar à sala. Verifique o código e tente novamente.");
+        console.error(err);
+      });
+    }
+
+    // ROTINAS DE RECEBIMENTO DO HOST
+    function handleHostReceivedData(conn, data) {
+      if (data.type === 'JOIN_LOBBY') {
+        roomPlayers.push({ id: conn.peer, name: data.name, cardCount: 0 });
+        broadcastLobbyState();
+      } else if (data.type === 'PLAY_CARD') {
+        hostProcessPlayCard(conn.peer, data.cardIndex, data.chosenColor);
+      } else if (data.type === 'DRAW_CARD') {
+        hostProcessDraw(conn.peer);
+      }
+    }
+
+    function broadcastLobbyState() {
+      const payload = { type: 'LOBBY_UPDATE', players: roomPlayers };
+      connections.forEach(c => {
+        if (c.open) c.send(payload);
+      });
+      updateLobbyList();
+    }
+
+    function updateLobbyList() {
+      const listEl = document.getElementById('waiting-players-list');
+      listEl.innerHTML = '';
+      roomPlayers.forEach((p, idx) => {
+        const item = document.createElement('div');
+        item.className = 'waiting-item';
+        item.innerText = `${idx + 1}. ${p.name} ${p.id === myPeerId ? '(Você)' : ''}`;
+        listEl.appendChild(item);
+      });
+    }
+
+    // INÍCIO DA PARTIDA PELO HOST
+    function hostStartMatch() {
+      if (roomPlayers.length < 2) {
+        alert("São necessários pelo menos 2 jogadores para iniciar!");
+        return;
+      }
+
+      hostGameState.deck = createDeck();
+      hostGameState.discardPile = [];
+      hostGameState.playerHands = {};
+
+      roomPlayers.forEach(p => {
+        hostGameState.playerHands[p.id] = [];
         for (let i = 0; i < 7; i++) {
-          p.hand.push(deck.pop());
+          hostGameState.playerHands[p.id].push(hostGameState.deck.pop());
         }
       });
 
-      // Abre primeira carta (evita coringa para simplicidade inicial)
-      let initialCard = deck.pop();
+      let initialCard = hostGameState.deck.pop();
       while (initialCard.color === 'black') {
-        deck.unshift(initialCard);
-        initialCard = deck.pop();
+        hostGameState.deck.unshift(initialCard);
+        initialCard = hostGameState.deck.pop();
       }
-      discardPile.push(initialCard);
+      hostGameState.discardPile.push(initialCard);
 
-      document.getElementById('lobby-screen').classList.remove('active-screen');
-      document.getElementById('game-screen').classList.add('active-screen');
-      document.getElementById('current-room-name').innerText = roomName;
+      hostGameState.currentPlayerIndex = 0;
+      hostGameState.status = "playing";
 
-      currentPlayerIndex = 0;
-      updateUI();
-      startTurnTimer();
+      broadcastGameState("Partida iniciada! Boa sorte a todos!");
+      hostStartTimer();
     }
 
-    function startTurnTimer() {
-      clearInterval(timerInterval);
-      currentTime = turnDuration;
-      document.getElementById('turn-countdown').innerText = currentTime;
+    function hostStartTimer() {
+      clearInterval(hostTimerInterval);
+      hostGameState.currentTimerValue = hostGameState.turnTimer;
 
-      timerInterval = setInterval(() => {
-        currentTime--;
-        document.getElementById('turn-countdown').innerText = currentTime;
+      broadcastTimerUpdate();
 
-        if (currentTime <= 0) {
-          clearInterval(timerInterval);
-          logAction(`${players[currentPlayerIndex].name} estourou o tempo e comprou 1 carta!`);
-          giveCards(currentPlayerIndex, 1);
-          nextTurn();
+      hostTimerInterval = setInterval(() => {
+        hostGameState.currentTimerValue--;
+        broadcastTimerUpdate();
+
+        if (hostGameState.currentTimerValue <= 0) {
+          clearInterval(hostTimerInterval);
+          const currentP = roomPlayers[hostGameState.currentPlayerIndex];
+          hostGiveCards(currentP.id, 1);
+          const logMsg = `${currentP.name} estourou o tempo e comprou 1 carta!`;
+          hostNextTurn(logMsg);
         }
       }, 1000);
     }
 
-    function resetTimer() {
-      clearInterval(timerInterval);
-      startTurnTimer();
+    function broadcastTimerUpdate() {
+      const payload = {
+        type: 'TIMER_TICK',
+        timer: hostGameState.currentTimerValue
+      };
+      connections.forEach(c => { if (c.open) c.send(payload); });
+      localTimerSeconds = hostGameState.currentTimerValue;
+      document.getElementById('turn-countdown').innerText = localTimerSeconds;
     }
 
-    function getTopCard() {
-      return discardPile[discardPile.length - 1];
+    function hostGiveCards(playerId, count) {
+      for (let i = 0; i < count; i++) {
+        if (hostGameState.deck.length === 0) {
+          hostRecycleDeck();
+        }
+        if (hostGameState.deck.length > 0) {
+          hostGameState.playerHands[playerId].push(hostGameState.deck.pop());
+        }
+      }
     }
 
-    function canPlay(card) {
-      const top = getTopCard();
-      return (
-        card.color === 'black' ||
-        card.color === top.color ||
-        card.value === top.value
-      );
+    function hostRecycleDeck() {
+      if (hostGameState.discardPile.length <= 1) return;
+      const top = hostGameState.discardPile.pop();
+      hostGameState.deck = shuffle(hostGameState.discardPile.map(c => {
+        return (c.value === 'WILD' || c.value === '+4') ? { ...c, color: 'black' } : c;
+      }));
+      hostGameState.discardPile = [top];
     }
 
-    function playCard(index) {
-      const player = players[currentPlayerIndex];
-      const card = player.hand[index];
+    function hostProcessDraw(peerId) {
+      const currentExpectedPlayer = roomPlayers[hostGameState.currentPlayerIndex];
+      if (currentExpectedPlayer.id !== peerId) return;
 
-      if (!canPlay(card)) {
-        logAction('Movimento inválido! Cor ou número incompatível.');
+      hostGiveCards(peerId, 1);
+      hostNextTurn(`${currentExpectedPlayer.name} comprou uma carta do monte.`);
+    }
+
+    function hostProcessPlayCard(peerId, cardIndex, chosenColor) {
+      const currentExpectedPlayer = roomPlayers[hostGameState.currentPlayerIndex];
+      if (currentExpectedPlayer.id !== peerId) return;
+
+      const hand = hostGameState.playerHands[peerId];
+      const card = hand[cardIndex];
+      const top = hostGameState.discardPile[hostGameState.discardPile.length - 1];
+
+      const isValid = (card.color === 'black' || card.color === top.color || card.value === top.value);
+      if (!isValid) return;
+
+      hand.splice(cardIndex, 1);
+
+      if (card.color === 'black' && chosenColor) {
+        card.color = chosenColor;
+      }
+
+      hostGameState.discardPile.push(card);
+
+      // Verificação de Vitória
+      if (hand.length === 0) {
+        clearInterval(hostTimerInterval);
+        const winPayload = {
+          type: 'GAME_OVER',
+          winnerName: currentExpectedPlayer.name
+        };
+        connections.forEach(c => { if (c.open) c.send(winPayload); });
+        handleGameOver(currentExpectedPlayer.name);
         return;
       }
 
-      player.hand.splice(index, 1);
+      let logMsg = `${currentExpectedPlayer.name} jogou ${card.value}`;
+
+      if (card.value === 'SKIP') {
+        hostAdvanceTurnIndex();
+        logMsg += " - Bloqueio ativado!";
+      } else if (card.value === '+2') {
+        const target = (hostGameState.currentPlayerIndex + 1) % roomPlayers.length;
+        hostGiveCards(roomPlayers[target].id, 2);
+        hostAdvanceTurnIndex();
+        logMsg += ` - ${roomPlayers[target].name} comprou 2 e perdeu o turno!`;
+      } else if (card.value === '+4') {
+        const target = (hostGameState.currentPlayerIndex + 1) % roomPlayers.length;
+        hostGiveCards(roomPlayers[target].id, 4);
+        hostAdvanceTurnIndex();
+        logMsg += ` - ${roomPlayers[target].name} comprou 4 e perdeu o turno!`;
+      }
+
+      hostNextTurn(logMsg);
+    }
+
+    function hostAdvanceTurnIndex() {
+      hostGameState.currentPlayerIndex = (hostGameState.currentPlayerIndex + 1) % roomPlayers.length;
+    }
+
+    function hostNextTurn(logMessage = "") {
+      hostAdvanceTurnIndex();
+      broadcastGameState(logMessage);
+      hostStartTimer();
+    }
+
+    function validateTurnAfterDisconnect() {
+      if (hostGameState.currentPlayerIndex >= roomPlayers.length) {
+        hostGameState.currentPlayerIndex = 0;
+      }
+    }
+
+    function broadcastGameState(logMessage = "") {
+      roomPlayers.forEach(p => {
+        p.cardCount = hostGameState.playerHands[p.id] ? hostGameState.playerHands[p.id].length : 0;
+      });
+
+      const topCard = hostGameState.discardPile[hostGameState.discardPile.length - 1];
+      const activePlayerId = roomPlayers[hostGameState.currentPlayerIndex].id;
+
+      // Envia dados customizados para cada cliente (para esconder as mãos uns dos outros)
+      connections.forEach(conn => {
+        if (conn.open) {
+          conn.send({
+            type: 'STATE_UPDATE',
+            topCard: topCard,
+            hand: hostGameState.playerHands[conn.peer] || [],
+            players: roomPlayers,
+            activePlayerId: activePlayerId,
+            log: logMessage
+          });
+        }
+      });
+
+      // Aplica o estado localmente para o Host
+      localMyHand = hostGameState.playerHands[myPeerId] || [];
+      localDiscardTop = topCard;
+      localCurrentTurnPlayerId = activePlayerId;
+      renderGameBoard(roomPlayers, logMessage);
+    }
+
+    // ROTINAS DE RECEBIMENTO DO CLIENTE
+    function handleClientReceivedData(data) {
+      if (data.type === 'LOBBY_UPDATE') {
+        roomPlayers = data.players;
+        updateLobbyList();
+      } else if (data.type === 'STATE_UPDATE') {
+        localMyHand = data.hand;
+        localDiscardTop = data.topCard;
+        localCurrentTurnPlayerId = data.activePlayerId;
+        roomPlayers = data.players;
+        renderGameBoard(roomPlayers, data.log);
+      } else if (data.type === 'TIMER_TICK') {
+        localTimerSeconds = data.timer;
+        document.getElementById('turn-countdown').innerText = localTimerSeconds;
+      } else if (data.type === 'GAME_OVER') {
+        handleGameOver(data.winnerName);
+      }
+    }
+
+    function handleGameOver(winnerName) {
+      alert(`Partida finalizada! ${winnerName} venceu o jogo!`);
+      location.reload();
+    }
+
+    // AÇÕES DO JOGADOR LOCAL
+    function onDeckClick() {
+      if (localCurrentTurnPlayerId !== myPeerId) {
+        alert("Não é a sua vez!");
+        return;
+      }
+
+      if (isHost) {
+        hostProcessDraw(myPeerId);
+      } else {
+        hostConn.send({ type: 'DRAW_CARD' });
+      }
+    }
+
+    function onCardClick(index) {
+      if (localCurrentTurnPlayerId !== myPeerId) {
+        alert("Espere seu turno!");
+        return;
+      }
+
+      const card = localMyHand[index];
+      const isValid = (card.color === 'black' || card.color === localDiscardTop.color || card.value === localDiscardTop.value);
+
+      if (!isValid) {
+        document.getElementById('game-log').innerText = "Carta inválida para este descarte!";
+        return;
+      }
 
       if (card.color === 'black') {
-        pendingWildCard = card;
+        pendingWildIndex = index;
         document.getElementById('color-modal').style.display = 'flex';
         return;
       }
 
-      applyCardEffects(card);
+      executePlayCard(index, null);
     }
 
-    function setWildColor(selectedColor) {
+    function selectWildColor(color) {
       document.getElementById('color-modal').style.display = 'none';
-      const card = pendingWildCard;
-      pendingWildCard = null;
-
-      card.color = selectedColor;
-      applyCardEffects(card);
-    }
-
-    function applyCardEffects(card) {
-      discardPile.push(card);
-
-      const winner = checkWinner();
-      if (winner) return;
-
-      if (card.value === 'SKIP') {
-        logAction(`${players[currentPlayerIndex].name} jogou BLOQUEIO! Próximo jogador perdeu a vez.`);
-        advanceTurnIndex();
-      } else if (card.value === '+2') {
-        const target = getNextPlayerIndex();
-        logAction(`${players[target].name} comprou 2 cartas e perdeu o turno!`);
-        giveCards(target, 2);
-        advanceTurnIndex();
-      } else if (card.value === '+4') {
-        const target = getNextPlayerIndex();
-        logAction(`${players[target].name} comprou 4 cartas e perdeu o turno!`);
-        giveCards(target, 4);
-        advanceTurnIndex();
-      }
-
-      nextTurn();
-    }
-
-    function giveCards(playerIdx, count) {
-      for (let i = 0; i < count; i++) {
-        if (deck.length === 0) recycleDiscardPile();
-        if (deck.length > 0) players[playerIdx].hand.push(deck.pop());
+      if (pendingWildIndex !== null) {
+        executePlayCard(pendingWildIndex, color);
+        pendingWildIndex = null;
       }
     }
 
-    function recycleDiscardPile() {
-      if (discardPile.length <= 1) return;
-      const top = discardPile.pop();
-      deck = shuffle(discardPile.map(c => (c.value === 'WILD' || c.value === '+4') ? { ...c, color: 'black' } : c));
-      discardPile = [top];
-    }
-
-    function playerDrawCard() {
-      giveCards(currentPlayerIndex, 1);
-      logAction(`${players[currentPlayerIndex].name} comprou uma carta.`);
-      nextTurn();
-    }
-
-    function getNextPlayerIndex() {
-      return (currentPlayerIndex + 1) % players.length;
-    }
-
-    function advanceTurnIndex() {
-      currentPlayerIndex = getNextPlayerIndex();
-    }
-
-    function nextTurn() {
-      advanceTurnIndex();
-      updateUI();
-      resetTimer();
-    }
-
-    function checkWinner() {
-      const player = players[currentPlayerIndex];
-      if (player.hand.length === 0) {
-        clearInterval(timerInterval);
-        alert(`Fim de jogo! ${player.name} venceu a partida!`);
-        location.reload();
-        return true;
+    function executePlayCard(cardIndex, chosenColor) {
+      if (isHost) {
+        hostProcessPlayCard(myPeerId, cardIndex, chosenColor);
+      } else {
+        hostConn.send({
+          type: 'PLAY_CARD',
+          cardIndex: cardIndex,
+          chosenColor: chosenColor
+        });
       }
-      return false;
     }
 
-    function logAction(msg) {
-      document.getElementById('game-log').innerText = msg;
-    }
-
+    // RENDERIZAÇÃO DA INTERFACE
     function renderCard(card, isInteractive = false, index = null) {
       const cardEl = document.createElement('div');
       cardEl.className = `card ${card.color}`;
@@ -606,37 +916,47 @@
       `;
 
       if (isInteractive && index !== null) {
-        cardEl.onclick = () => playCard(index);
+        cardEl.onclick = () => onCardClick(index);
       }
       return cardEl;
     }
 
-    function updateUI() {
-      // Rastreador Superior de Jogadores
+    function renderGameBoard(playersList, logMessage) {
+      switchScreen('game-screen');
+
+      if (logMessage) {
+        document.getElementById('game-log').innerText = logMessage;
+      }
+
+      // Painel de Jogadores
       const tracker = document.getElementById('players-tracker');
       tracker.innerHTML = '';
-      players.forEach((p, idx) => {
+      playersList.forEach(p => {
         const badge = document.createElement('div');
-        badge.className = `player-badge ${idx === currentPlayerIndex ? 'active-turn' : ''}`;
+        badge.className = `player-badge ${p.id === localCurrentTurnPlayerId ? 'active-turn' : ''} ${p.id === myPeerId ? 'you' : ''}`;
         badge.innerHTML = `
-          <span>${p.name} (${p.hand.length})</span>
-          ${idx === currentPlayerIndex ? `<span class="timer-badge">VEZ</span>` : ''}
+          <span>${p.name} (${p.cardCount})</span>
+          ${p.id === localCurrentTurnPlayerId ? `<span class="timer-badge">VEZ</span>` : ''}
         `;
         tracker.appendChild(badge);
       });
 
-      // Pilha de Descarte
+      // Carta do Topo no Descarte
       const discardSpot = document.getElementById('discard-spot');
       discardSpot.innerHTML = '';
-      discardSpot.appendChild(renderCard(getTopCard()));
+      if (localDiscardTop) {
+        discardSpot.appendChild(renderCard(localDiscardTop));
+      }
 
-      // Painel Inferior
-      document.getElementById('active-player-name').innerText = `Turno atual: ${players[currentPlayerIndex].name}`;
+      // Informações da Mão
+      const currentActiveObj = playersList.find(p => p.id === localCurrentTurnPlayerId);
+      const activeName = currentActiveObj ? currentActiveObj.name : "...";
+      document.getElementById('active-turn-text').innerText = `Turno: ${activeName} ${localCurrentTurnPlayerId === myPeerId ? '(SEU TURNO)' : ''}`;
 
-      // Mão do Jogador Atual
+      // Mão do Jogador Local
       const cardsContainer = document.getElementById('player-cards');
       cardsContainer.innerHTML = '';
-      players[currentPlayerIndex].hand.forEach((card, index) => {
+      localMyHand.forEach((card, index) => {
         cardsContainer.appendChild(renderCard(card, true, index));
       });
     }
