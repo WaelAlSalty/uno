@@ -199,6 +199,16 @@
       border-color: #3498db;
     }
 
+    .player-badge.uno-alert {
+      border-color: #e74c3c;
+      animation: blinkUno 0.8s infinite alternate;
+    }
+
+    @keyframes blinkUno {
+      from { box-shadow: 0 0 5px #e74c3c; }
+      to { box-shadow: 0 0 15px #e74c3c; }
+    }
+
     .timer-badge {
       background: #c0392b;
       padding: 2px 6px;
@@ -212,7 +222,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 30px;
+      gap: 25px;
       margin: auto 0;
     }
 
@@ -233,6 +243,37 @@
 
     .deck-pile:hover {
       transform: scale(1.04);
+    }
+
+    /* BOTÃO UNO */
+    .uno-button {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #ff3838, #b71540);
+      border: 4px solid #fff;
+      box-shadow: 0 0 20px rgba(234, 50, 60, 0.6), 0 6px 10px rgba(0,0,0,0.5);
+      color: #fff;
+      font-size: 1.4rem;
+      font-weight: 900;
+      font-style: italic;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.1s ease, box-shadow 0.2s ease;
+      margin: 0;
+      padding: 0;
+      outline: none;
+    }
+
+    .uno-button:hover {
+      transform: scale(1.08);
+      box-shadow: 0 0 25px rgba(255, 77, 77, 0.9), 0 8px 12px rgba(0,0,0,0.6);
+    }
+
+    .uno-button:active {
+      transform: scale(0.92);
     }
 
     /* Cartas UNO */
@@ -427,6 +468,9 @@
       </div>
       
       <div id="discard-spot"></div>
+
+      <!-- BOTÃO OFICIAL DE UNO -->
+      <button class="uno-button" onclick="onUnoButtonClick()">UNO!</button>
     </div>
 
     <div class="hand-container">
@@ -460,19 +504,20 @@
     let peer = null;
     let isHost = false;
     let hostConn = null;
-    let connections = []; // Conexões do host para os clientes
+    let connections = [];
 
-    // Estado da Sala e do Jogo (O Host é a autoridade da verdade)
+    // Estado da Sala e do Jogo (O Host é a autoridade central)
     let roomCode = "";
-    let roomPlayers = []; // [{ id, name, cardCount }]
+    let roomPlayers = [];
     let hostGameState = {
       deck: [],
       discardPile: [],
-      playerHands: {}, // { peerId: [cards] }
+      playerHands: {},
       currentPlayerIndex: 0,
       turnTimer: 15,
       currentTimerValue: 15,
-      status: "lobby"
+      status: "lobby",
+      unoPendingPlayerId: null // ID de quem tem 1 carta e precisa apertar UNO
     };
 
     let localMyHand = [];
@@ -613,6 +658,8 @@
         hostProcessPlayCard(conn.peer, data.cardIndex, data.chosenColor);
       } else if (data.type === 'DRAW_CARD') {
         hostProcessDraw(conn.peer);
+      } else if (data.type === 'UNO_SHOUT') {
+        hostProcessUnoShout(conn.peer);
       }
     }
 
@@ -645,6 +692,7 @@
       hostGameState.deck = createDeck();
       hostGameState.discardPile = [];
       hostGameState.playerHands = {};
+      hostGameState.unoPendingPlayerId = null;
 
       roomPlayers.forEach(p => {
         hostGameState.playerHands[p.id] = [];
@@ -722,7 +770,33 @@
       if (currentExpectedPlayer.id !== peerId) return;
 
       hostGiveCards(peerId, 1);
+      if (hostGameState.unoPendingPlayerId === peerId) {
+        hostGameState.unoPendingPlayerId = null;
+      }
       hostNextTurn(`${currentExpectedPlayer.name} comprou uma carta do monte.`);
+    }
+
+    // MECÂNICA DO BOTÃO UNO
+    function hostProcessUnoShout(senderId) {
+      const sender = roomPlayers.find(p => p.id === senderId);
+      if (!sender) return;
+
+      if (hostGameState.unoPendingPlayerId) {
+        if (hostGameState.unoPendingPlayerId === senderId) {
+          // O próprio jogador gritou a tempo
+          hostGameState.unoPendingPlayerId = null;
+          broadcastGameState(`★ ${sender.name} gritou UNO com sucesso!`);
+        } else {
+          // Outro jogador denunciou que ele não gritou UNO
+          const targetPlayer = roomPlayers.find(p => p.id === hostGameState.unoPendingPlayerId);
+          const targetName = targetPlayer ? targetPlayer.name : "Jogador";
+          hostGiveCards(hostGameState.unoPendingPlayerId, 2);
+          hostGameState.unoPendingPlayerId = null;
+          broadcastGameState(`🚨 ${sender.name} pegou ${targetName} sem gritar UNO! (+2 cartas de penalidade)`);
+        }
+      } else {
+        broadcastGameState(`${sender.name} apertou UNO!`);
+      }
     }
 
     function hostProcessPlayCard(peerId, cardIndex, chosenColor) {
@@ -754,6 +828,13 @@
         connections.forEach(c => { if (c.open) c.send(winPayload); });
         handleGameOver(currentExpectedPlayer.name);
         return;
+      }
+
+      // Regra de 1 carta restante: ativa pendência de UNO
+      if (hand.length === 1) {
+        hostGameState.unoPendingPlayerId = peerId;
+      } else if (hostGameState.unoPendingPlayerId === peerId) {
+        hostGameState.unoPendingPlayerId = null;
       }
 
       let logMsg = `${currentExpectedPlayer.name} jogou ${card.value}`;
@@ -800,7 +881,6 @@
       const topCard = hostGameState.discardPile[hostGameState.discardPile.length - 1];
       const activePlayerId = roomPlayers[hostGameState.currentPlayerIndex].id;
 
-      // Envia dados customizados para cada cliente (para esconder as mãos uns dos outros)
       connections.forEach(conn => {
         if (conn.open) {
           conn.send({
@@ -809,16 +889,16 @@
             hand: hostGameState.playerHands[conn.peer] || [],
             players: roomPlayers,
             activePlayerId: activePlayerId,
+            unoPendingPlayerId: hostGameState.unoPendingPlayerId,
             log: logMessage
           });
         }
       });
 
-      // Aplica o estado localmente para o Host
       localMyHand = hostGameState.playerHands[myPeerId] || [];
       localDiscardTop = topCard;
       localCurrentTurnPlayerId = activePlayerId;
-      renderGameBoard(roomPlayers, logMessage);
+      renderGameBoard(roomPlayers, logMessage, hostGameState.unoPendingPlayerId);
     }
 
     // ROTINAS DE RECEBIMENTO DO CLIENTE
@@ -831,7 +911,7 @@
         localDiscardTop = data.topCard;
         localCurrentTurnPlayerId = data.activePlayerId;
         roomPlayers = data.players;
-        renderGameBoard(roomPlayers, data.log);
+        renderGameBoard(roomPlayers, data.log, data.unoPendingPlayerId);
       } else if (data.type === 'TIMER_TICK') {
         localTimerSeconds = data.timer;
         document.getElementById('turn-countdown').innerText = localTimerSeconds;
@@ -856,6 +936,14 @@
         hostProcessDraw(myPeerId);
       } else {
         hostConn.send({ type: 'DRAW_CARD' });
+      }
+    }
+
+    function onUnoButtonClick() {
+      if (isHost) {
+        hostProcessUnoShout(myPeerId);
+      } else {
+        hostConn.send({ type: 'UNO_SHOUT' });
       }
     }
 
@@ -921,21 +1009,23 @@
       return cardEl;
     }
 
-    function renderGameBoard(playersList, logMessage) {
+    function renderGameBoard(playersList, logMessage, unoPendingId) {
       switchScreen('game-screen');
 
       if (logMessage) {
         document.getElementById('game-log').innerText = logMessage;
       }
 
-      // Painel de Jogadores
+      // Painel Superior de Jogadores
       const tracker = document.getElementById('players-tracker');
       tracker.innerHTML = '';
       playersList.forEach(p => {
         const badge = document.createElement('div');
-        badge.className = `player-badge ${p.id === localCurrentTurnPlayerId ? 'active-turn' : ''} ${p.id === myPeerId ? 'you' : ''}`;
+        const isUnoAlert = (unoPendingId === p.id);
+        badge.className = `player-badge ${p.id === localCurrentTurnPlayerId ? 'active-turn' : ''} ${p.id === myPeerId ? 'you' : ''} ${isUnoAlert ? 'uno-alert' : ''}`;
         badge.innerHTML = `
           <span>${p.name} (${p.cardCount})</span>
+          ${isUnoAlert ? `<span style="color: #ff5252; font-weight: bold;">[1 CARTA]</span>` : ''}
           ${p.id === localCurrentTurnPlayerId ? `<span class="timer-badge">VEZ</span>` : ''}
         `;
         tracker.appendChild(badge);
